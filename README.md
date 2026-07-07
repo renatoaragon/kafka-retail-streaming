@@ -44,10 +44,33 @@ Single-node and plaintext by design: replication factor 1, auto-topic-creation
 off (topics are created explicitly), a fixed cluster id for stable storage across
 restarts. CI validates `docker-compose.yml` on every change.
 
+## Produce events
+
+A seeded generator emits synthetic **sale** and **stock** events (same retail
+domain as the batch project). The generator is pure and deterministic; the Kafka
+send path is a thin, testable wrapper.
+
+```bash
+pip install -r requirements.txt
+
+# create the topic (auto-creation is off), then produce
+docker compose exec kafka \
+  kafka-topics --bootstrap-server localhost:9092 \
+  --create --topic retail.events --partitions 3
+
+python -m retail_stream.producer --topic retail.events --count 500 --seed 42
+```
+
+Run the tests (no broker needed — the producer is exercised with a fake):
+
+```bash
+pytest -q
+```
+
 ## Roadmap
 
 - [x] Kafka (KRaft) + Schema Registry via Docker Compose
-- [ ] Producer of synthetic sales/stock events
+- [x] Producer of synthetic sales/stock events
 - [ ] Spark Structured Streaming consumer
 - [ ] Windowed aggregations (tumbling + sliding) with watermarks
 - [ ] Late-data handling + dead-letter queue
