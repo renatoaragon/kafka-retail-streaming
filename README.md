@@ -13,15 +13,48 @@ decisions rather than a single drop.
 
 > Runs locally with Docker and synthetic data. No real or personal data is used.
 
-## Planned architecture
+## Architecture
 
 ```
- producer ──▶ Kafka (KRaft) ──▶ Spark Structured Streaming ──▶ Iceberg
- (sales/stock   + Schema         windowed aggregations,          (curated,
-  events)        Registry        watermarks, late data, DLQ       checkpointed)
-                                          ▲
- Postgres ──▶ Debezium ────────────────────  (CDC source)
+                 ┌──────────────┐
+   seeded        │   producer   │  synthetic sale / stock events (JSON)
+   generator ───▶│ retail_stream│  keyed by order_id / sku
+                 └──────┬───────┘
+                        ▼  topic: retail.events
+                 ┌──────────────┐        ┌──────────────────┐
+                 │    Kafka     │◀──────▶│ Schema Registry  │
+                 │   (KRaft)    │        │  (Avro, planned) │
+                 └──────┬───────┘        └──────────────────┘
+                        ▼
+                 ┌──────────────┐   windowed aggregations (tumbling + sliding)
+                 │    Spark     │   watermarks · late data → dead-letter queue
+                 │  Structured  │
+                 │  Streaming   │            ┌──────────────┐
+                 └──────┬───────┘            │   Postgres   │
+                        ▼                    └──────┬───────┘
+                 ┌──────────────┐                   ▼ CDC
+                 │   Iceberg    │◀──── Debezium ──── (planned)
+                 │  (curated,   │
+                 │ checkpointed)│
+                 └──────────────┘
 ```
+
+Solid today: **producer → Kafka**. The Spark consumer, Iceberg sink, and the CDC
+branch are the stages still on the [roadmap](#roadmap) below; the diagram shows
+where they plug in.
+
+### Event model
+
+Two event types share the `retail.events` topic (same retail domain as
+[spark-retail-etl](https://github.com/renatoaragon/spark-retail-etl)):
+
+| Type    | Key        | Notable fields                                       |
+|---------|------------|------------------------------------------------------|
+| `sale`  | `order_id` | `category`, `quantity`, `unit_price`, `ts`           |
+| `stock` | `sku`      | `category`, `warehouse`, `quantity_delta`, `ts`      |
+
+Keying by the business id keeps a given order's or SKU's events ordered within a
+partition — which the windowed aggregations downstream will rely on.
 
 ## Run the platform
 
@@ -71,12 +104,33 @@ pytest -q
 
 - [x] Kafka (KRaft) + Schema Registry via Docker Compose
 - [x] Producer of synthetic sales/stock events
+- [x] Architecture overview + design notes
 - [ ] Spark Structured Streaming consumer
 - [ ] Windowed aggregations (tumbling + sliding) with watermarks
 - [ ] Late-data handling + dead-letter queue
 - [ ] Iceberg sink with checkpointing
 - [ ] Exactly-once semantics (documented as an ADR)
 - [ ] CDC: Postgres + Debezium → Kafka → Iceberg
+
+## Design notes
+
+- **KRaft, not ZooKeeper** — one process is both broker and controller. Fewer moving
+  parts for a local lab, and the direction Kafka itself is heading.
+- **Auto-topic-creation off** — topics are declared explicitly. A typo'd topic name
+  fails loudly instead of silently spawning an empty topic.
+- **Keyed events** — `order_id` / `sku` as the message key gives per-key ordering
+  within a partition, the property windowed aggregations and any future joins need.
+- **Deterministic generator** — seeded, wall-clock-free timestamps, so a run is
+  reproducible and tests are stable. The data is synthetic; no real data is used.
+- **Client-agnostic send path** — serialization and the produce loop don't import
+  the Kafka client, so they're unit-tested with a fake and the native library is
+  only needed to actually talk to a broker.
+- **JSON first, Avro next** — the wire format is JSON today; registering Avro schemas
+  with the Schema Registry lands once the consumer exists to read against them.
+
+Each stage is a separate PR with a short design note, so the history reads as a
+sequence of decisions. Where a decision is heavier (exactly-once, CDC), it will get
+its own ADR under `docs/adr/`.
 
 ## License
 
