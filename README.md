@@ -100,12 +100,25 @@ Run the tests (no broker needed — the producer is exercised with a fake):
 pytest -q
 ```
 
+## Consume events
+
+A Spark Structured Streaming job subscribes to the topic, decodes the JSON payload
+into typed columns, and (at this stage) prints them to the console.
+
+```bash
+python -m retail_stream.consumer --topic retail.events
+```
+
+The decode step (`parse_events`) is a plain `DataFrame -> DataFrame` transformation,
+so it is unit-tested on a static DataFrame — only the streaming source and sink need
+a live broker. Spark pulls the `spark-sql-kafka` package on first run.
+
 ## Roadmap
 
 - [x] Kafka (KRaft) + Schema Registry via Docker Compose
 - [x] Producer of synthetic sales/stock events
 - [x] Architecture overview + design notes
-- [ ] Spark Structured Streaming consumer
+- [x] Spark Structured Streaming consumer
 - [ ] Windowed aggregations (tumbling + sliding) with watermarks
 - [ ] Late-data handling + dead-letter queue
 - [ ] Iceberg sink with checkpointing
