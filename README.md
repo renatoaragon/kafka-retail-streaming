@@ -133,6 +133,20 @@ python -m retail_stream.consumer --aggregate sliding    # 5-min window, 1-min sl
 `revenue_tumbling` / `revenue_sliding` are pure transforms, tested deterministically
 on static data.
 
+## Late data & dead-letter queue
+
+Nothing is dropped silently. Records that can't be used as events are routed aside
+with the original payload and a reason:
+
+- **Malformed / unknown** (`split_valid_invalid`) — JSON that didn't parse, an
+  unrecognised `event_type`, or an unreadable timestamp.
+- **Late** (`split_on_time_late`) — well-formed but older than the watermark
+  boundary, so a windowed aggregation would discard it.
+
+`as_dlq` shapes those rows for a dead-letter sink (`event_id`, `raw_json`,
+`dlq_reason`) — a separate Kafka topic or table you can inspect and replay. This is
+why the decoder keeps the raw payload (`decode_with_raw`).
+
 ## Roadmap
 
 - [x] Kafka (KRaft) + Schema Registry via Docker Compose
@@ -140,7 +154,7 @@ on static data.
 - [x] Architecture overview + design notes
 - [x] Spark Structured Streaming consumer
 - [x] Windowed aggregations (tumbling + sliding) with watermarks
-- [ ] Late-data handling + dead-letter queue
+- [x] Late-data handling + dead-letter queue
 - [ ] Iceberg sink with checkpointing
 - [ ] Exactly-once semantics (documented as an ADR)
 - [ ] CDC: Postgres + Debezium → Kafka → Iceberg

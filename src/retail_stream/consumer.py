@@ -53,18 +53,29 @@ def build_spark(app_name: str = "retail-stream") -> SparkSession:
     )
 
 
+def decode_with_raw(raw: DataFrame) -> DataFrame:
+    """Decode Kafka records but keep the original JSON payload as ``raw_json``.
+
+    Retaining the raw string lets the dead-letter path carry the exact bytes that
+    failed to decode. A record whose JSON is unparseable yields all-null event
+    fields (and a null ``event_time``), which is how invalid records are detected
+    downstream.
+    """
+    return (
+        raw.select(F.col("value").cast("string").alias("raw_json"))
+        .select("raw_json", F.from_json("raw_json", EVENT_SCHEMA).alias("e"))
+        .select("raw_json", "e.*")
+        .withColumn("event_time", F.to_timestamp("ts"))
+    )
+
+
 def parse_events(raw: DataFrame) -> DataFrame:
     """Decode Kafka records (binary ``value`` JSON) into typed event columns.
 
     Works on both streaming and static DataFrames — it is a pure transformation,
     which is what lets it be tested without Kafka.
     """
-    return (
-        raw.select(F.col("value").cast("string").alias("json"))
-        .select(F.from_json("json", EVENT_SCHEMA).alias("e"))
-        .select("e.*")
-        .withColumn("event_time", F.to_timestamp("ts"))
-    )
+    return decode_with_raw(raw).drop("raw_json")
 
 
 def read_kafka_stream(
