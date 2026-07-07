@@ -113,13 +113,33 @@ The decode step (`parse_events`) is a plain `DataFrame -> DataFrame` transformat
 so it is unit-tested on a static DataFrame — only the streaming source and sink need
 a live broker. Spark pulls the `spark-sql-kafka` package on first run.
 
+## Windowed aggregations
+
+Revenue per category over **event-time** windows, with a **watermark** so Spark can
+bound lateness and evict state for windows that can no longer change.
+
+```bash
+python -m retail_stream.consumer --aggregate tumbling   # 1-min buckets
+python -m retail_stream.consumer --aggregate sliding    # 5-min window, 1-min slide
+```
+
+- **Tumbling** — fixed, non-overlapping windows; each event lands in exactly one.
+- **Sliding** — fixed-length windows advancing by a smaller slide, so they overlap
+  and an event contributes to several (moving trends).
+- **Watermark** (`event_time - 2 minutes`) — the threshold past which late events are
+  dropped and completed windows' state is released; without it, streaming aggregation
+  state would grow without bound.
+
+`revenue_tumbling` / `revenue_sliding` are pure transforms, tested deterministically
+on static data.
+
 ## Roadmap
 
 - [x] Kafka (KRaft) + Schema Registry via Docker Compose
 - [x] Producer of synthetic sales/stock events
 - [x] Architecture overview + design notes
 - [x] Spark Structured Streaming consumer
-- [ ] Windowed aggregations (tumbling + sliding) with watermarks
+- [x] Windowed aggregations (tumbling + sliding) with watermarks
 - [ ] Late-data handling + dead-letter queue
 - [ ] Iceberg sink with checkpointing
 - [ ] Exactly-once semantics (documented as an ADR)

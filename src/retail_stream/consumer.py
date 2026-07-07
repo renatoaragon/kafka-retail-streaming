@@ -83,16 +83,32 @@ def main() -> None:  # pragma: no cover - needs a live broker
     parser = argparse.ArgumentParser(description="Consume retail events from Kafka.")
     parser.add_argument("--bootstrap", default=DEFAULT_BOOTSTRAP)
     parser.add_argument("--topic", default=TOPIC)
+    parser.add_argument(
+        "--aggregate",
+        choices=["none", "tumbling", "sliding"],
+        default="none",
+        help="Print raw events (none) or a windowed revenue aggregation.",
+    )
     args = parser.parse_args()
+
+    # Imported here so the module (and its tests) don't require this at load time.
+    from retail_stream.aggregations import revenue_sliding, revenue_tumbling
 
     spark = build_spark()
     spark.sparkContext.setLogLevel("WARN")
     events = parse_events(read_kafka_stream(spark, args.bootstrap, args.topic))
 
+    if args.aggregate == "tumbling":
+        out, mode = revenue_tumbling(events), "update"
+    elif args.aggregate == "sliding":
+        out, mode = revenue_sliding(events), "update"
+    else:
+        out, mode = events, "append"
+
     query = (
-        events.writeStream.format("console")
+        out.writeStream.format("console")
         .option("truncate", "false")
-        .outputMode("append")
+        .outputMode(mode)
         .start()
     )
     query.awaitTermination()
