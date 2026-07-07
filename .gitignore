@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Spark / streaming state
+spark-warehouse/
+metastore_db/
+derby.log
+*.crc
+_SUCCESS
+checkpoints/
+warehouse/
+
+# Docker / data
+data/
+*.log
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
