@@ -147,6 +147,20 @@ with the original payload and a reason:
 `dlq_reason`) — a separate Kafka topic or table you can inspect and replay. This is
 why the decoder keeps the raw payload (`decode_with_raw`).
 
+## Iceberg sink
+
+The aggregated stream is written to an Apache **Iceberg** table, with a
+**checkpoint** holding the Kafka offsets and streaming state so a restarted query
+resumes exactly where it left off.
+
+- `iceberg_configs` — Spark settings for a local Hadoop-catalog Iceberg setup.
+- `configure_iceberg_writer` / `write_stream_to_iceberg` — wire a streaming writer
+  to an Iceberg table with `checkpointLocation`.
+
+The config and writer wiring are unit-tested with a fake writer; the actual write
+needs the Iceberg runtime jar and a live stream, so it runs against the stack, not
+in CI (mirroring how the broker itself is validated).
+
 ## Roadmap
 
 - [x] Kafka (KRaft) + Schema Registry via Docker Compose
@@ -155,7 +169,7 @@ why the decoder keeps the raw payload (`decode_with_raw`).
 - [x] Spark Structured Streaming consumer
 - [x] Windowed aggregations (tumbling + sliding) with watermarks
 - [x] Late-data handling + dead-letter queue
-- [ ] Iceberg sink with checkpointing
+- [x] Iceberg sink with checkpointing
 - [ ] Exactly-once semantics (documented as an ADR)
 - [ ] CDC: Postgres + Debezium → Kafka → Iceberg
 
