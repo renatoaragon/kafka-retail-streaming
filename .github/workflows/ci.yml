@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    name: validate compose
+    steps:
+      - uses: actions/checkout@v4
+
+      # GitHub-hosted Ubuntu runners ship Docker + the Compose plugin, so we can
+      # validate the stack definition (interpolation, schema, service graph)
+      # without pulling images.
+      - name: Validate docker-compose.yml
+        run: docker compose -f docker-compose.yml config --quiet
+
+      - name: Assert expected services are defined
+        run: |
+          services="$(docker compose -f docker-compose.yml config --services)"
+          echo "Services: $services"
+          echo "$services" | grep -qx kafka
+          echo "$services" | grep -qx schema-registry

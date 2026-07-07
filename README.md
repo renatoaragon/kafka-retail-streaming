@@ -23,9 +23,30 @@ decisions rather than a single drop.
  Postgres ──▶ Debezium ────────────────────  (CDC source)
 ```
 
+## Run the platform
+
+```bash
+docker compose up -d          # start Kafka (KRaft) + Schema Registry
+docker compose ps             # wait for both to report healthy
+
+# smoke-check
+docker compose exec kafka \
+  kafka-topics --bootstrap-server localhost:9092 --list
+curl -s http://localhost:8081/subjects        # Schema Registry, expect: []
+
+docker compose down           # stop and remove
+```
+
+- **Kafka** (KRaft, no ZooKeeper) — host clients on `localhost:9092`.
+- **Schema Registry** — `http://localhost:8081`.
+
+Single-node and plaintext by design: replication factor 1, auto-topic-creation
+off (topics are created explicitly), a fixed cluster id for stable storage across
+restarts. CI validates `docker-compose.yml` on every change.
+
 ## Roadmap
 
-- [ ] Kafka (KRaft) + Schema Registry via Docker Compose
+- [x] Kafka (KRaft) + Schema Registry via Docker Compose
 - [ ] Producer of synthetic sales/stock events
 - [ ] Spark Structured Streaming consumer
 - [ ] Windowed aggregations (tumbling + sliding) with watermarks
