@@ -161,6 +161,11 @@ The config and writer wiring are unit-tested with a fake writer; the actual writ
 needs the Iceberg runtime jar and a live stream, so it runs against the stack, not
 in CI (mirroring how the broker itself is validated).
 
+Checkpoint + Iceberg's atomic, batch-id-aware commits are what give the pipeline
+**end-to-end exactly-once** delivery into the table — what that means precisely,
+and where it stops, is documented in
+[ADR 0001](docs/adr/0001-exactly-once-semantics.md).
+
 ## Roadmap
 
 - [x] Kafka (KRaft) + Schema Registry via Docker Compose
@@ -170,7 +175,7 @@ in CI (mirroring how the broker itself is validated).
 - [x] Windowed aggregations (tumbling + sliding) with watermarks
 - [x] Late-data handling + dead-letter queue
 - [x] Iceberg sink with checkpointing
-- [ ] Exactly-once semantics (documented as an ADR)
+- [x] Exactly-once semantics ([ADR 0001](docs/adr/0001-exactly-once-semantics.md))
 - [ ] CDC: Postgres + Debezium → Kafka → Iceberg
 
 ## Design notes
@@ -190,8 +195,8 @@ in CI (mirroring how the broker itself is validated).
   with the Schema Registry lands once the consumer exists to read against them.
 
 Each stage is a separate PR with a short design note, so the history reads as a
-sequence of decisions. Where a decision is heavier (exactly-once, CDC), it will get
-its own ADR under `docs/adr/`.
+sequence of decisions. Where a decision is heavier (exactly-once, CDC), it gets
+its own ADR under [`docs/adr/`](docs/adr/).
 
 ## License
 
