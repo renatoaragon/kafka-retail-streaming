@@ -100,6 +100,12 @@ Run the tests (no broker needed — the producer is exercised with a fake):
 pytest -q
 ```
 
+The suite ends with an end-to-end run on static data
+([`test_pipeline.py`](tests/test_pipeline.py)): generator → producer wire format →
+decode → valid/late routing → windowed revenue. It pins two properties no
+single-stage test can see — the producer and consumer agree on the wire contract,
+and every input record leaves the pipeline in exactly one place (output or DLQ).
+
 ## Consume events
 
 A Spark Structured Streaming job subscribes to the topic, decodes the JSON payload
