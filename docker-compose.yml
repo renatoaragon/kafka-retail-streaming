@@ -1,10 +1,12 @@
-# Single-node Kafka in KRaft mode (no ZooKeeper) plus a Schema Registry.
+# Single-node Kafka in KRaft mode (no ZooKeeper), a Schema Registry, and the
+# CDC branch: Postgres (logical decoding) + Debezium via Kafka Connect.
 # Aimed at local development, not production: replication factor 1, plaintext.
 #
 #   docker compose up -d
 #   docker compose ps
 #
-# Host clients connect on localhost:9092; Schema Registry on http://localhost:8081.
+# Host clients connect on localhost:9092; Schema Registry on http://localhost:8081;
+# Kafka Connect (Debezium) on http://localhost:8083; Postgres on localhost:5432.
 
 services:
   kafka:
@@ -56,6 +58,54 @@ services:
       SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/subjects"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  postgres:
+    image: postgres:16
+    hostname: postgres
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: retail
+      POSTGRES_PASSWORD: retail
+      POSTGRES_DB: retail
+    # Logical decoding is what Debezium reads from the WAL; Postgres defaults
+    # to `replica`, which does not carry enough information for CDC.
+    command: ["postgres", "-c", "wal_level=logical"]
+    volumes:
+      - ./cdc/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U retail -d retail"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  connect:
+    image: quay.io/debezium/connect:2.7
+    hostname: connect
+    container_name: connect
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: "kafka:29092"
+      GROUP_ID: retail-connect
+      # Connect stores its own state in Kafka; single-node -> RF 1 everywhere.
+      CONFIG_STORAGE_TOPIC: _connect_configs
+      OFFSET_STORAGE_TOPIC: _connect_offsets
+      STATUS_STORAGE_TOPIC: _connect_status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
       interval: 10s
       timeout: 5s
       retries: 12
