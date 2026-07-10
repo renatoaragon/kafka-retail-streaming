@@ -29,6 +29,8 @@ jobs:
           echo "Services: $services"
           echo "$services" | grep -qx kafka
           echo "$services" | grep -qx schema-registry
+          echo "$services" | grep -qx postgres
+          echo "$services" | grep -qx connect
 
   test:
     runs-on: ubuntu-latest

@@ -32,16 +32,16 @@ decisions rather than a single drop.
                  │  Streaming   │            ┌──────────────┐
                  └──────┬───────┘            │   Postgres   │
                         ▼                    └──────┬───────┘
-                 ┌──────────────┐                   ▼ CDC
-                 │   Iceberg    │◀──── Debezium ──── (planned)
-                 │  (curated,   │
-                 │ checkpointed)│
+                 ┌──────────────┐                   ▼ WAL (logical)
+                 │   Iceberg    │◀╌╌╌╌ Debezium ────┘
+                 │  (curated,   │      topic: retail.cdc.public.products
+                 │ checkpointed)│      (consumption path planned)
                  └──────────────┘
 ```
 
-Solid today: **producer → Kafka**. The Spark consumer, Iceberg sink, and the CDC
-branch are the stages still on the [roadmap](#roadmap) below; the diagram shows
-where they plug in.
+Solid today: the whole event path — **producer → Kafka → Spark → Iceberg** — plus
+the CDC infrastructure (**Postgres → Debezium → Kafka**). What remains on the
+[roadmap](#roadmap) is consuming the change-event topic into the curated layer.
 
 ### Event model
 
@@ -172,6 +172,52 @@ Checkpoint + Iceberg's atomic, batch-id-aware commits are what give the pipeline
 and where it stops, is documented in
 [ADR 0001](docs/adr/0001-exactly-once-semantics.md).
 
+## CDC: Postgres → Debezium → Kafka
+
+The stream so far carries *events* (things that happened). CDC adds the other
+source every real platform has: *state* — an operational OLTP table whose row
+changes are captured from the write-ahead log and published to Kafka, with the
+application that owns the table none the wiser.
+
+The compose stack now includes:
+
+- **`postgres`** — Postgres 16 running with `wal_level=logical` (the default
+  `replica` level doesn't carry enough for CDC). An init script creates and seeds
+  a `products` table — the state the sale/stock *events* act upon — and sets
+  `REPLICA IDENTITY FULL` so update/delete events carry the full **before image**,
+  not just the old key.
+- **`connect`** — Kafka Connect with the Debezium Postgres connector, reading the
+  WAL through the built-in `pgoutput` plugin (nothing extra to install in the
+  database). Connect keeps its own config/offsets/status in Kafka.
+
+Bring the stack up and register the connector
+([`cdc/register-postgres.json`](cdc/register-postgres.json)):
+
+```bash
+docker compose up -d          # kafka, schema-registry, postgres, connect
+curl -s -X POST -H "Content-Type: application/json" \
+  --data @cdc/register-postgres.json http://localhost:8083/connectors | jq .
+```
+
+The initial snapshot publishes every existing row to
+`retail.cdc.public.products`; from then on each INSERT/UPDATE/DELETE arrives as
+a change event within milliseconds. Watch it happen:
+
+```bash
+docker compose exec kafka kafka-console-consumer \
+  --bootstrap-server localhost:9092 \
+  --topic retail.cdc.public.products --from-beginning &
+
+docker compose exec postgres psql -U retail -d retail \
+  -c "UPDATE products SET unit_price = 13.90 WHERE sku = 'SKU0001'"
+```
+
+Because the broker runs with topic auto-creation off (deliberate, PR #1), the
+connector declares its topic settings via Connect's `topic.creation.*` — the
+change-event topic is created explicitly, same philosophy as the rest of the
+stack. The registration document and init SQL are pinned by broker-free tests
+(`tests/test_cdc_config.py`); the live path is exercised against the stack.
+
 ## Roadmap
 
 - [x] Kafka (KRaft) + Schema Registry via Docker Compose
@@ -182,7 +228,9 @@ and where it stops, is documented in
 - [x] Late-data handling + dead-letter queue
 - [x] Iceberg sink with checkpointing
 - [x] Exactly-once semantics ([ADR 0001](docs/adr/0001-exactly-once-semantics.md))
-- [ ] CDC: Postgres + Debezium → Kafka → Iceberg
+- [x] CDC infrastructure: Postgres (logical decoding) + Debezium Connect
+- [ ] CDC consumption: change events → Spark → Iceberg
+- [ ] ADR: batch vs streaming vs CDC — when each is the right tool
 
 ## Design notes
 
