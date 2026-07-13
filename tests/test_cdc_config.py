@@ -56,6 +56,17 @@ def test_connector_declares_topic_creation_since_broker_autocreate_is_off():
     assert int(cfg["topic.creation.default.partitions"]) >= 1
 
 
+def test_connector_serializes_for_the_consumer():
+    # These two settings exist because of the consumer (see retail_stream.cdc):
+    # schemas.enable=false keeps the payload a plain envelope (the per-message
+    # schema doubles the payload for no benefit here), and without
+    # decimal.handling.mode=double the numeric(10,2) column arrives as
+    # base64-encoded bytes that from_json cannot read as a number.
+    cfg = _connector()["config"]
+    assert cfg["value.converter.schemas.enable"] == "false"
+    assert cfg["decimal.handling.mode"] == "double"
+
+
 def test_init_sql_creates_seeds_and_sets_replica_identity():
     sql = INIT_SQL_PATH.read_text(encoding="utf-8")
     assert "CREATE TABLE products" in sql

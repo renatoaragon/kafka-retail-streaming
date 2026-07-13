@@ -12,6 +12,9 @@
     "table.include.list": "public.products",
     "snapshot.mode": "initial",
     "tombstones.on.delete": "true",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "decimal.handling.mode": "double",
     "topic.creation.default.replication.factor": "1",
     "topic.creation.default.partitions": "3"
   }

@@ -218,6 +218,37 @@ change-event topic is created explicitly, same philosophy as the rest of the
 stack. The registration document and init SQL are pinned by broker-free tests
 (`tests/test_cdc_config.py`); the live path is exercised against the stack.
 
+### Consuming the change events
+
+The event pipeline is append-shaped; CDC is **update-shaped** — a change
+supersedes the row's previous state, and a delete removes it. This is exactly
+the case [ADR 0001](docs/adr/0001-exactly-once-semantics.md) reserved for
+`foreachBatch` + `MERGE INTO`, and `retail_stream/cdc.py` implements it:
+
+1. **Parse** the Debezium envelope (`before`/`after`/`op`/`ts_ms`), dropping
+   Kafka log-compaction tombstones and garbage (the delete itself arrives as a
+   regular `op='d'` event).
+2. **Flatten** to one change per row — deletes take their key from `before`,
+   since `after` is null.
+3. **Compact** each micro-batch to the latest change per key (`ts_ms` order): a
+   key touched five times in a batch has one true final state, and applying a
+   stale intermediate last would corrupt the table.
+4. **Merge** atomically into Iceberg: matched + `op='d'` → DELETE, matched →
+   UPDATE, not matched (and not a delete) → INSERT.
+
+Two connector settings exist purely for the consumer's sake:
+`value.converter.schemas.enable=false` (the per-message schema envelope doubles
+every payload) and `decimal.handling.mode=double` (Debezium's default encodes
+`numeric(10,2)` as base64 bytes — the classic first-contact surprise).
+
+```bash
+python -c "from retail_stream.cdc import stream_cdc_to_iceberg"  # wiring lives here
+```
+
+Parsing, flattening, compaction and the MERGE statement are all tested on
+static data (`tests/test_cdc.py`); the live merge needs the Iceberg runtime and
+runs against the stack.
+
 ## Roadmap
 
 - [x] Kafka (KRaft) + Schema Registry via Docker Compose
@@ -229,7 +260,7 @@ stack. The registration document and init SQL are pinned by broker-free tests
 - [x] Iceberg sink with checkpointing
 - [x] Exactly-once semantics ([ADR 0001](docs/adr/0001-exactly-once-semantics.md))
 - [x] CDC infrastructure: Postgres (logical decoding) + Debezium Connect
-- [ ] CDC consumption: change events → Spark → Iceberg
+- [x] CDC consumption: change events → Spark → Iceberg (foreachBatch + MERGE)
 - [ ] ADR: batch vs streaming vs CDC — when each is the right tool
 
 ## Design notes
