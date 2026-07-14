@@ -9,3 +9,4 @@ after the diff is forgotten. Lighter decisions live in the README's
 | ADR | Title | Status |
 |-----|-------|--------|
 | [0001](0001-exactly-once-semantics.md) | Exactly-once semantics: what this pipeline guarantees, and how | Accepted |
+| [0002](0002-batch-vs-streaming-vs-cdc.md) | Batch vs streaming vs CDC: when each is the right tool | Accepted |
