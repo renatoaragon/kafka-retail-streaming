@@ -261,7 +261,11 @@ runs against the stack.
 - [x] Exactly-once semantics ([ADR 0001](docs/adr/0001-exactly-once-semantics.md))
 - [x] CDC infrastructure: Postgres (logical decoding) + Debezium Connect
 - [x] CDC consumption: change events → Spark → Iceberg (foreachBatch + MERGE)
-- [ ] ADR: batch vs streaming vs CDC — when each is the right tool
+- [x] ADR: [batch vs streaming vs CDC — when each is the right tool](docs/adr/0002-batch-vs-streaming-vs-cdc.md)
+
+**The roadmap is complete.** Built stage by stage in 12 reviewed pull requests;
+from here the repo is in maintenance: the PR history *is* the documentation of
+how it grew.
 
 ## Design notes
 
