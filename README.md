@@ -287,6 +287,18 @@ Each stage is a separate PR with a short design note, so the history reads as a
 sequence of decisions. Where a decision is heavier (exactly-once, CDC), it gets
 its own ADR under [`docs/adr/`](docs/adr/).
 
+## Related work
+
+- [kanban-streaming-metrics](https://github.com/renatoaragon/kanban-streaming-metrics) —
+  the flow-metrics case study: what streaming *measures* (throughput, cycle
+  time, WIP, percentile forecasting), where this repo covers what streaming
+  *costs to run correctly*.
+- [meucomboio-pt](https://github.com/renatoaragon/meucomboio-pt) — the same
+  data discipline applied to a real product in production: a daily GTFS
+  pipeline with a quality gate feeding a trip planner. Batch-shaped on purpose —
+  exactly the "batch first" default that
+  [ADR 0002](docs/adr/0002-batch-vs-streaming-vs-cdc.md) argues for.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
