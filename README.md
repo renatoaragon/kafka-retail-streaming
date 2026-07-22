@@ -58,6 +58,11 @@ partition — which the windowed aggregations downstream will rely on.
 
 ## Run the platform
 
+Every command below is also a `make` target, gathered in the
+[`Makefile`](Makefile) so the many manual steps live in one place. `make help`
+lists them; the quick path is `make up && make topic && make produce && make
+consume`.
+
 ```bash
 docker compose up -d          # start Kafka (KRaft) + Schema Registry
 docker compose ps             # wait for both to report healthy
